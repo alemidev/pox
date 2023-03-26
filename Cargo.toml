@@ -5,10 +5,11 @@ edition = "2021"
 
 [lib]
 name = "tetanus"
+crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [[bin]]
-name = "rustyneedle"
+name = "needle"
 path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
