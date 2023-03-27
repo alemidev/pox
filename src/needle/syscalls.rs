@@ -1,6 +1,6 @@
 use nix::{libc::user_regs_struct, Result, sys::{ptrace, wait::waitpid}, unistd::Pid};
 
-use crate::{rce::RemoteString, injector::RemoteOperation};
+use crate::{injector::RemoteOperation, senders::RemoteString};
 
 pub trait RemoteSyscall {
 	fn registers(&self, regs: &mut user_regs_struct);
@@ -73,7 +73,7 @@ impl RemoteSyscall for RemoteOpen {
 
 pub struct RemoteWrite {
 	fd: u64,
-	buf: RemoteString, // TODO make remote slice or remote bytes
+	buf: RemoteString,
 }
 
 impl RemoteWrite {
