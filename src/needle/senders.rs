@@ -1,10 +1,29 @@
-use std::ffi::c_void;
+use std::{ffi::c_void, fmt::Display};
 
 use nix::{Result, unistd::Pid, sys::ptrace, libc::{PROT_READ, PROT_WRITE, MAP_PRIVATE, MAP_ANON}};
 
 use crate::{injector::RemoteOperation, syscalls::RemoteMMap};
 
 const WORD_SIZE : usize = 32;
+
+pub struct ByteVec(pub Vec<u8>);
+
+impl From<Vec<u8>> for ByteVec {
+	fn from(value: Vec<u8>) -> Self {
+		ByteVec(value)
+	}
+}
+
+impl Display for ByteVec {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "[ ")?;
+		for el in self.0.iter() {
+			write!(f, "0x{:x} ", el)?;
+		}
+		write!(f, "]")?;
+		Ok(())
+	}
+}
 
 #[allow(unused)]
 pub fn read_buffer(pid: Pid, addr: usize, size: usize) -> Result<Vec<u8>> {

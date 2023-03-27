@@ -2,6 +2,7 @@ mod syscalls;
 mod executors;
 mod senders;
 mod injector;
+mod explorers;
 
 use injector::{RemoteOperation, step_to_syscall};
 use nix::{Result, {sys::{ptrace, wait::waitpid}, unistd::Pid}};
@@ -18,12 +19,14 @@ struct NeedleArgs {
 	pid: i32,
 }
 
+const SHELLCODE : [u8; 2] = [0x90, 0x90];
+
 pub fn nasty_stuff(pid: Pid) -> Result<()> {
 	let syscall_addr = step_to_syscall(pid)?;
 	let mut msg = RemoteString::new("injected!\n\0".into());
 	msg.inject(pid, syscall_addr)?;
 	RemoteWrite::args(1, msg).inject(pid, syscall_addr)?;
-	RemoteShellcode::new(&[0u8]).inject(pid, syscall_addr)?;
+	RemoteShellcode::new(&SHELLCODE).inject(pid, syscall_addr)?;
 	Ok(())
 }
 
