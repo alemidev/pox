@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "needle"
-path = "src/main.rs"
+path = "src/needle/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
