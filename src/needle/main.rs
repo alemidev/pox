@@ -1,10 +1,14 @@
 mod syscalls;
+mod rce;
 mod operations;
+mod injector;
 
+use injector::RemoteOperation;
 use nix::{Result, {sys::{ptrace, wait::waitpid}, unistd::Pid}};
 use clap::Parser;
 use operations::step_to_syscall;
-use syscalls::{RemoteString, RemoteWrite, RemoteSyscall};
+use rce::{RemoteString, RemoteShellcode};
+use syscalls::RemoteWrite;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -20,8 +24,10 @@ struct NeedleArgs {
 pub fn nasty_stuff(pid: Pid, _word_size: usize) -> Result<()> {
 	let original_registers = ptrace::getregs(pid)?;
 	let syscall_addr = step_to_syscall(pid)?;
-	let msg = RemoteString::new(pid, syscall_addr, "injected!\n\0".into())?;
-	RemoteWrite::args(1, msg).syscall(pid, syscall_addr)?;
+	let mut msg = RemoteString::new("injected!\n\0".into());
+	msg.inject(pid, syscall_addr)?;
+	RemoteWrite::args(1, msg).inject(pid, syscall_addr)?;
+	RemoteShellcode::new(&[0u8]).inject(pid, syscall_addr)?;
 	ptrace::setregs(pid, original_registers)?;
 	Ok(())
 }
