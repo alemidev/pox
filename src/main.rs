@@ -1,9 +1,9 @@
 mod syscalls;
 
 use std::ffi::c_void;
-use nix::{Result, {sys::{ptrace, wait::waitpid}, unistd::Pid}};
+use nix::{Result, {sys::{ptrace, wait::waitpid}, unistd::Pid}, libc::{PROT_READ, PROT_WRITE, MAP_PRIVATE, MAP_ANON}};
 use clap::Parser;
-use syscalls::prepare_exit;
+use syscalls::{prepare_mmap, prepare_write};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -16,19 +16,42 @@ struct NeedleArgs {
 	word: u32,
 }
 
-pub fn write_buffer(pid: Pid, addr: usize, payload: &[u8], word:u32) -> Result<()> {
-	let mut buffer = payload.to_vec();
+pub fn send_str(pid: Pid, syscall_addr: u64, data: &str) -> Result<usize> {
+	let mut regs = ptrace::getregs(pid)?;
+	regs.rip = syscall_addr;
+	prepare_mmap(&mut regs, 0, data.len(), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, 0xFFFFFFFFFFFFFFFF, 0);
+	ptrace::setregs(pid, regs)?;
+	ptrace::step(pid, None)?;
+	waitpid(pid, None)?;
+	let zone_addr = ptrace::getregs(pid)?.rax as usize;
+	write_buffer(pid, zone_addr, data.as_bytes(), 32)?; // TODO word size!
+	Ok(zone_addr)
+}
 
-	while buffer.len() % word as usize != 0 {
-		buffer.push(0); // pad with zeros because we copy chunks of size 'word'
+pub fn read_buffer(pid: Pid, addr: usize, size: usize, word: u32) -> Result<Vec<u8>> {
+	let mut out = vec![];
+
+	for i in (0..size).step_by((word/8) as usize) {
+		let data = ptrace::read(pid, (addr + i) as *mut c_void)?;
+		for j in 0..(word/8) as usize {
+			out.push(((data >> (j * 8)) & 0xFF) as u8);
+		}
 	}
 
-	for i in (0..buffer.len()).step_by(word as usize) {
-		unsafe {
-			let offset = (addr + i) as *mut c_void;
-			let data = (buffer.as_ptr().add(i)) as *mut c_void;
-			ptrace::write(pid, offset, data)?;
+	Ok(out)
+}
+
+pub fn write_buffer(pid: Pid, addr: usize, payload: &[u8], word:u32) -> Result<()> {
+	let step = word / 8;
+	let mut at = addr;
+
+	for chunk in payload.chunks(step as usize) {
+		let mut buf : u64 = 0;
+		for (i, c) in chunk.iter().enumerate() {
+			buf |= (*c as u64) << (i * 8);
 		}
+		unsafe { ptrace::write(pid, at as *mut c_void, buf as *mut c_void)?; }
+		at += step as usize;
 	}
 
 	Ok(())
@@ -40,6 +63,7 @@ pub fn pwn(pid: Pid, _word_size: usize) -> Result<()> {
 	let mut insn_addr;
 	let mut curr_instr;
 
+	// seek to syscall
 	loop {
 		prev_regs = ptrace::getregs(pid)?;
 		insn_addr = prev_regs.rip;
@@ -64,19 +88,24 @@ pub fn pwn(pid: Pid, _word_size: usize) -> Result<()> {
 	// 	ptrace::write(pid, insn_addr, syscall_insn.as_slice().as_ptr() as *mut c_void)?;
 	// }
 
+	let msg = send_str(pid, insn_addr, "injected!\n\0")?;
+
 	let mut call_regs = prev_regs.clone();
 
-	// call_regs.rip = insn_addr;
-	prepare_exit(&mut call_regs, 69);
+	call_regs.rip = insn_addr;
+
+	prepare_write(&mut call_regs, 1, msg, 10);
 	ptrace::setregs(pid, call_regs)?;
 	ptrace::step(pid, None)?;
 	waitpid(pid, None)?;
+	// println!("Written payload to stdout on tracee");
 
 	// restore code and registers
 	// unsafe {
 	// 	ptrace::write(pid, insn_addr, prev_instr.as_ptr() as *mut c_void)?;
 	// }
-	// ptrace::setregs(pid, prev_regs)?;
+
+	ptrace::setregs(pid, prev_regs)?;
 
 	Ok(())
 }
