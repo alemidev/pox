@@ -17,6 +17,7 @@ path = "src/needle/main.rs"
 [dependencies]
 clap = { version = "4.1.13", features = ["derive"] }
 ctor = "0.1.26"
+retour = "0.1" # plain detour doesn't work on latest nightly? idk
 elf = "0.7.2"
 nix = "0.26.2"
 proc-maps = "0.3.0"
