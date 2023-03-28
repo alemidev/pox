@@ -72,19 +72,24 @@ impl RemoteSyscall for RemoteOpen {
 }
 
 pub struct RemoteWrite {
-	fd: u64,
-	buf: RemoteString,
+	fd: i64,
+	ptr: u64,
+	len: u64,
 }
 
 impl RemoteWrite {
-	pub fn args(fd: u64, buf: RemoteString) -> Self {
-		RemoteWrite { fd, buf }
+	pub fn args(fd: i64, ptr: u64, len: u64) -> Self {
+		RemoteWrite { fd, ptr, len }
+	}
+
+	pub fn string(fd: i64, txt: RemoteString) -> Self {
+		RemoteWrite { fd, ptr: txt.ptr.expect("remote write with uninjected remote str") as u64, len: txt.txt.len() as u64 }
 	}
 }
 
 impl RemoteSyscall for RemoteWrite {
 	fn registers(&self, regs: &mut user_regs_struct) {
-		Self::prepare_registers(regs, 1, self.fd, self.buf.ptr.unwrap() as u64, self.buf.txt.len() as u64, 0, 0, 0);
+		Self::prepare_registers(regs, 1, self.fd as u64, self.ptr, self.len, 0, 0, 0);
 	}
 }
 
