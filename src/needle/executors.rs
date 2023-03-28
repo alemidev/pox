@@ -30,8 +30,7 @@ impl RemoteOperation for RemoteShellcode<'_> {
 		ptrace::cont(pid, None)?;
 		waitpid(pid, None)?;
 		let after_regs = ptrace::getregs(pid)?;
-		println!("Executed shellcode (RIP: 0x{:X}", after_regs.rip);
-		ptrace::setregs(pid, original_regs)?;
+		println!("Executed shellcode (RIP: 0x{:X})", after_regs.rip);
 		Ok(ptr)
 	}
 }
