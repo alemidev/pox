@@ -1,6 +1,6 @@
 use std::{ffi::c_void, path::{Path, PathBuf}, io::{ErrorKind, Error}};
 
-use elf::{ElfBytes, endian::AnyEndian, abi::{PT_LOAD, ET_EXEC}};
+use elf::{ElfBytes, endian::AnyEndian};
 use nix::{unistd::Pid, sys::{ptrace, wait::waitpid}};
 use proc_maps::get_process_maps;
 

@@ -27,6 +27,8 @@ impl<T> RemoteOperation for T where T: RemoteSyscall {
 		regs = ptrace::getregs(pid)?;
 		Ok(regs.rax)
 	}
+
+	fn revert(&mut self, _pid: Pid, _syscall: usize) -> Result<u64> { Ok(0) }
 }
 
 pub struct RemoteMMap {
@@ -99,6 +101,7 @@ pub struct RemoteWrite {
 	len: u64,
 }
 
+#[allow(unused)]
 impl RemoteWrite {
 	pub fn args(fd: i64, ptr: u64, len: u64) -> Self {
 		RemoteWrite { fd, ptr, len }
