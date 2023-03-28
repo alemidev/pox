@@ -14,7 +14,7 @@ use executors::RemoteShellcode;
 use senders::RemoteString;
 use explorers::step_to_syscall;
 
-use crate::explorers::{find_libc, find_dlopen};
+use crate::{explorers::{find_libc, find_dlopen}, syscalls::RemoteExit};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -41,6 +41,10 @@ struct NeedleArgs {
 	/// path of libc shared object on disk, used to calculate symbol offset in ELF
 	#[arg(long)]
 	path: Option<PathBuf>,
+
+	/// instead of injecting a library, execute an exit syscall with code 69
+	#[arg(long, default_value_t = false)]
+	kill: bool,
 }
 
 fn nasty_stuff(args: NeedleArgs) -> Result<()> {
@@ -53,6 +57,12 @@ fn nasty_stuff(args: NeedleArgs) -> Result<()> {
 	// continue running process step-by-step until we find a syscall
 	let syscall = step_to_syscall(pid)?; // TODO no real need to step...
 	let original_regs = ptrace::getregs(pid)?; // store original regs to restore after injecting
+
+	if args.kill {
+		RemoteExit::args(69).exit(pid, syscall)?;
+		println!("Killed process #{}", args.pid);
+		return Ok(());
+	}
 
 	// move path to our payload into target address space
 	let tetanus = RemoteString::new(args.payload + "\0")

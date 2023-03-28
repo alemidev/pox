@@ -102,6 +102,17 @@ impl RemoteExit {
 	pub fn args(code: i64) -> Self {
 		RemoteExit { code }
 	}
+
+	/// since the exit syscall will never return, normal inject() will always return an error.
+	/// calling this will just return success once the syscall has been invoked
+	pub fn exit(&mut self, pid: Pid, syscall: usize) -> Result<u64> {
+		let mut regs = ptrace::getregs(pid)?;
+		regs.rip = syscall as u64;
+		self.registers(&mut regs);
+		ptrace::setregs(pid, regs)?;
+		ptrace::step(pid, None)?;
+		Ok(self.code as u64)
+	}
 }
 
 impl RemoteSyscall for RemoteExit {
