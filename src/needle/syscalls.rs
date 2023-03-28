@@ -52,6 +52,25 @@ impl RemoteSyscall for RemoteMMap {
 	}
 }
 
+pub struct RemoteMUnmap {
+	addr: usize,
+	len: usize,
+}
+
+impl RemoteMUnmap {
+	pub fn args(addr: usize, len: usize) -> Self {
+		RemoteMUnmap { addr, len }
+	}
+}
+
+impl RemoteSyscall for RemoteMUnmap {
+	fn registers(&self, regs: &mut user_regs_struct) {
+		regs.rax = 11;
+		regs.rdi = self.addr as u64;
+		regs.rsi = self.len as u64;
+	}
+}
+
 pub struct RemoteOpen {
 	filename: RemoteString,
 	flags: u64,
