@@ -1,10 +1,10 @@
-use std::{ffi::c_void, fmt::Display};
+use std::{ffi::c_void, fmt::Display, mem::size_of};
 
 use nix::{Result, unistd::Pid, sys::ptrace, libc::{PROT_READ, PROT_WRITE, MAP_PRIVATE, MAP_ANON}};
 
 use crate::{injector::RemoteOperation, syscalls::RemoteMMap};
 
-const WORD_SIZE : usize = 32;
+const WORD_SIZE : usize = size_of::<usize>();
 
 pub struct ByteVec(pub Vec<u8>);
 
@@ -29,9 +29,10 @@ impl Display for ByteVec {
 pub fn read_buffer(pid: Pid, addr: usize, size: usize) -> Result<Vec<u8>> {
 	let mut out = vec![];
 
-	for i in (0..size).step_by(WORD_SIZE/8) {
+	for i in (0..size).step_by(WORD_SIZE) {
 		let data = ptrace::read(pid, (addr + i) as *mut c_void)?;
-		for j in 0..WORD_SIZE/8 {
+		println!("read {} bytes from target : 0x{:x}", WORD_SIZE, data);
+		for j in 0..WORD_SIZE {
 			out.push(((data >> (j * 8)) & 0xFF) as u8);
 		}
 	}
@@ -40,16 +41,15 @@ pub fn read_buffer(pid: Pid, addr: usize, size: usize) -> Result<Vec<u8>> {
 }
 
 pub fn write_buffer(pid: Pid, addr: usize, payload: &[u8]) -> Result<()> {
-	let step = WORD_SIZE / 8;
 	let mut at = addr;
 
-	for chunk in payload.chunks(step as usize) {
+	for chunk in payload.chunks(WORD_SIZE) {
 		let mut buf : u64 = 0;
 		for (i, c) in chunk.iter().enumerate() {
 			buf |= (*c as u64) << (i * 8);
 		}
 		unsafe { ptrace::write(pid, at as *mut c_void, buf as *mut c_void)?; }
-		at += step as usize;
+		at += WORD_SIZE;
 	}
 
 	Ok(())
