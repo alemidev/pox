@@ -67,7 +67,10 @@ impl RemoteOpen {
 
 impl RemoteSyscall for RemoteOpen {
 	fn registers(&self, regs: &mut user_regs_struct) { // TODO handle this unwrap
-		Self::prepare_registers(regs, 2, self.filename.ptr.unwrap() as u64, self.flags, self.mode, 0, 0, 0);
+		regs.rax = 2;
+		regs.rdi = self.filename.ptr.unwrap() as u64;
+		regs.rsi = self.flags;
+		regs.rdx = self.mode;
 	}
 }
 
@@ -89,7 +92,10 @@ impl RemoteWrite {
 
 impl RemoteSyscall for RemoteWrite {
 	fn registers(&self, regs: &mut user_regs_struct) {
-		Self::prepare_registers(regs, 1, self.fd as u64, self.ptr, self.len, 0, 0, 0);
+		regs.rax = 1;
+		regs.rdi = self.fd as u64;
+		regs.rsi = self.ptr;
+		regs.rdx = self.len;
 	}
 }
 
@@ -117,6 +123,7 @@ impl RemoteExit {
 
 impl RemoteSyscall for RemoteExit {
 	fn registers(&self, regs: &mut user_regs_struct) {
-	 Self::prepare_registers(regs, 60, self.code as u64, 0, 0, 0, 0, 0);
+		regs.rax = 60;
+		regs.rdi = self.code as u64;
 	}
 }
