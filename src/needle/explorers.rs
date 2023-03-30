@@ -14,7 +14,6 @@ pub fn step_to_syscall(pid: Pid) -> nix::Result<usize> {
 		registers = ptrace::getregs(pid)?;
 		addr = registers.rip as usize;
 		instructions = ptrace::read(pid, addr as *mut c_void)?;
-		// println!("@ 0x{:X} [{:x}]", insn_addr, curr_instr);
 
 		if instructions & 0xFFFF == 0x050F {
 			return Ok(addr);
@@ -41,7 +40,6 @@ pub fn find_libc(pid: Pid) -> std::io::Result<(usize, PathBuf)> {
 	let proc_maps = get_process_maps(pid.as_raw())?;
 
 	for map in proc_maps {
-		// println!("map > 0x{:08X} {} [{:x}] - {} [{}]", map.start(), map.flags, map.offset, map.inode, _path_to_str(map.filename()));
 		if map.is_exec() && _path_to_str(map.filename()).contains("libc.so") {
 			return Ok((
 				map.start() - map.offset,

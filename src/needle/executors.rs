@@ -1,6 +1,7 @@
 use nix::{unistd::Pid, Result, libc::{PROT_READ, MAP_PRIVATE, MAP_ANON, PROT_EXEC}, sys::{ptrace, wait::waitpid}};
+use tracing::{debug, info};
 
-use crate::{syscalls::{RemoteMMap, RemoteMUnmap}, senders::{write_buffer, read_buffer, ByteVec}, injector::RemoteOperation};
+use crate::{syscalls::{RemoteMMap, RemoteMUnmap}, senders::write_buffer, injector::RemoteOperation};
 
 pub struct RemoteShellcode<'a> {
 	code: &'a [u8],
@@ -19,20 +20,18 @@ impl RemoteOperation for RemoteShellcode<'_> {
 		let ptr = RemoteMMap::args(
 			0, self.code.len() + 1, PROT_READ | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0
 		).inject(pid, syscall)?;
-		println!("Obtained area @ 0x{:X}", ptr);
+		debug!("obtained area @ 0x{:X}", ptr);
 		self.ptr = Some(ptr);
 		let mut shellcode = self.code.to_vec();
 		shellcode.push(0xCC); // is this the debugger trap?
 		write_buffer(pid, ptr as usize, shellcode.as_slice())?;
-		let shellcode = read_buffer(pid, ptr as usize, self.code.len() + 1)?;
-		println!("Copied shellcode {}", ByteVec::from(shellcode));
 		let mut regs = original_regs.clone();
 		regs.rip = ptr;
 		ptrace::setregs(pid, regs)?;
 		ptrace::cont(pid, None)?;
 		waitpid(pid, None)?;
 		let after_regs = ptrace::getregs(pid)?;
-		println!("Executed shellcode (RIP: 0x{:X})", after_regs.rip);
+		info!("executed shellcode (RIP: 0x{:X})", after_regs.rip);
 		Ok(ptr)
 	}
 

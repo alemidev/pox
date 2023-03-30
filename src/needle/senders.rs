@@ -1,6 +1,7 @@
 use std::{ffi::c_void, fmt::Display, mem::size_of};
 
 use nix::{Result, unistd::Pid, sys::ptrace, libc::{PROT_READ, PROT_WRITE, MAP_PRIVATE, MAP_ANON}};
+use tracing::{debug, info};
 
 use crate::{injector::RemoteOperation, syscalls::{RemoteMMap, RemoteMUnmap}};
 
@@ -31,7 +32,7 @@ pub fn read_buffer(pid: Pid, addr: usize, size: usize) -> Result<Vec<u8>> {
 
 	for i in (0..size).step_by(WORD_SIZE) {
 		let data = ptrace::read(pid, (addr + i) as *mut c_void)?;
-		println!("read {} bytes from target : 0x{:x}", WORD_SIZE, data);
+		debug!("read {} bytes: 0x{:x}", WORD_SIZE, data);
 		for j in 0..WORD_SIZE {
 			out.push(((data >> (j * 8)) & 0xFF) as u8);
 		}
@@ -49,6 +50,7 @@ pub fn write_buffer(pid: Pid, addr: usize, payload: &[u8]) -> Result<()> {
 			buf |= (*c as u64) << (i * 8);
 		}
 		unsafe { ptrace::write(pid, at as *mut c_void, buf as *mut c_void)?; }
+		debug!("wrote {} bytes: 0x{:x}", WORD_SIZE, buf);
 		at += WORD_SIZE;
 	}
 
@@ -73,6 +75,7 @@ impl RemoteOperation for RemoteString {
 		).inject(pid, syscall)?;
 		write_buffer(pid, ptr as usize, self.txt.as_bytes())?;
 		self.ptr = Some(ptr as usize);
+		info!("sent '{}'", self.txt);
 		Ok(ptr)
 	}
 

@@ -3,16 +3,19 @@ mod executors;
 mod senders;
 mod injector;
 mod explorers;
+mod monitor;
 
 use std::path::PathBuf;
 
 use injector::RemoteOperation;
+use monitor::monitor_payload;
 use nix::{Result, {sys::{ptrace, wait::waitpid}, unistd::Pid}};
 use clap::Parser;
 
 use executors::RemoteShellcode;
 use senders::RemoteString;
 use explorers::step_to_syscall;
+use tracing::{metadata::LevelFilter, info, error};
 
 use crate::{explorers::{find_libc, find_dlopen}, syscalls::RemoteExit};
 
@@ -45,6 +48,10 @@ struct NeedleArgs {
 	/// instead of injecting a library, execute an exit syscall with code 69
 	#[arg(long, default_value_t = false)]
 	kill: bool,
+
+	/// after injecting, keep alive listening for logs
+	#[arg(long, default_value_t = false)]
+	monitor: bool,
 }
 
 fn nasty_stuff(args: NeedleArgs) -> Result<()> {
@@ -52,7 +59,7 @@ fn nasty_stuff(args: NeedleArgs) -> Result<()> {
 
 	ptrace::attach(pid)?;
 	waitpid(pid, None)?;
-	println!("Attached to process #{}", args.pid);
+	info!("attached to process #{}", args.pid);
 
 	// continue running process step-by-step until we find a syscall
 	let syscall = step_to_syscall(pid)?; // TODO no real need to step...
@@ -60,12 +67,12 @@ fn nasty_stuff(args: NeedleArgs) -> Result<()> {
 
 	if args.kill {
 		RemoteExit::args(69).exit(pid, syscall)?;
-		println!("Killed process #{}", args.pid);
+		info!("killed process #{}", args.pid);
 		return Ok(());
 	}
 
 	// move path to our payload into target address space
-	let tetanus = RemoteString::new(args.payload + "\0")
+	let tetanus = RemoteString::new(args.payload.clone() + "\0")
 		.inject(pid, syscall)?;
 	
 	// find dlopen address
@@ -97,7 +104,6 @@ fn nasty_stuff(args: NeedleArgs) -> Result<()> {
 		dlopen_addr = base + offset;
 	}
 
-	println!("Attempting to invoke dlopen() @ 0x{:X}", dlopen_addr);
 
 	let shellcode = [ //  doesn't really spawn a shell soooooo not really shellcode?
 		0x55,                                        // pusb  rbp
@@ -120,21 +126,33 @@ fn nasty_stuff(args: NeedleArgs) -> Result<()> {
 	ptrace::setregs(pid, regs)?;
 	ptrace::cont(pid, None)?;
 	waitpid(pid, None)?;
-	println!("Injected dlopen() call");
+	info!("invoked dlopen('{}', 1) @ 0x{:X}", args.payload, dlopen_addr);
 
 	// restore original registers and detach
 	// TODO clean allocated areas
 	ptrace::setregs(pid, original_regs)?;
 	ptrace::detach(pid, None)?;
-	println!("Released process #{}", args.pid);
+	info!("released process #{}", args.pid);
 
 	Ok(())
 }
 
 fn main() {
+	tracing_subscriber::fmt()
+		.with_max_level(LevelFilter::INFO)
+		.init();
+
 	let args = NeedleArgs::parse();
 
+	let monitor = args.monitor;
+
 	if let Err(e) = nasty_stuff(args) {
-		eprintln!("Error while injecting : {} ({})", e, e.desc());
+		error!("error injecting shared object: {} ({})", e, e.desc());
+		return;
 	}
+
+	if monitor {
+		monitor_payload();
+	}
+
 }

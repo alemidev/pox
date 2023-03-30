@@ -1,4 +1,5 @@
 use nix::{libc::user_regs_struct, Result, sys::{ptrace, wait::waitpid}, unistd::Pid};
+use tracing::debug;
 
 use crate::{injector::RemoteOperation, senders::RemoteString};
 
@@ -21,10 +22,12 @@ impl<T> RemoteOperation for T where T: RemoteSyscall {
 		let mut regs = ptrace::getregs(pid)?;
 		regs.rip = syscall as u64;
 		self.registers(&mut regs);
+		let syscall_nr = regs.rax;
 		ptrace::setregs(pid, regs)?;
 		ptrace::step(pid, None)?;
 		waitpid(pid, None)?;
 		regs = ptrace::getregs(pid)?;
+		debug!(target: "remote-syscall", "executed syscall #{} -> {}", syscall_nr, regs.rax);
 		Ok(regs.rax)
 	}
 
