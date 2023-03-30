@@ -4,9 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "tetanus"
-crate-type = ["cdylib"]
-path = "src/tetanus/lib.rs"
+name = "rustyneedle"
+path = "src/lib.rs"
 
 [[bin]]
 name = "needle"
