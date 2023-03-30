@@ -2,14 +2,14 @@ use std::path::PathBuf;
 
 use tracing::{metadata::LevelFilter, info, error};
 
-use nix::{Result, {sys::{ptrace, wait::waitpid}, unistd::Pid}};
+use nix::{sys::{ptrace, wait::waitpid}, unistd::Pid};
 use clap::Parser;
 
-use rustyneedle::{
+use rustyneedle::{rc::{
 	injector::RemoteOperation, executors::RemoteShellcode,
 	senders::RemoteString, syscalls::RemoteExit,
 	explorers::step_to_syscall,
-};
+}, locators::{procmaps::map_addr_path, exec::offset_in_elf}};
 
 mod monitor;
 
@@ -20,7 +20,7 @@ struct NeedleArgs {
 	pid: i32,
 
 	/// shared object to inject into target process
-	#[arg(short, long, default_value = "./target/debug/libtetanus.so")]
+	#[arg(short, long)]
 	payload: String,
 
 	/// exact address of dlopen function, calculated with `base + offset` if not given
@@ -48,7 +48,7 @@ struct NeedleArgs {
 	monitor: bool,
 }
 
-fn nasty_stuff(args: NeedleArgs) -> Result<()> {
+fn nasty_stuff(args: NeedleArgs) -> Result<(), Box<dyn std::error::Error>> {
 	let pid = Pid::from_raw(args.pid);
 
 	ptrace::attach(pid)?;
@@ -77,7 +77,9 @@ fn nasty_stuff(args: NeedleArgs) -> Result<()> {
 	} else {
 		let (mut calc_base, mut calc_fpath) = (0, "".into()); // rust complains about uninitialized...
 		if args.path.is_none() || args.base.is_none() { // if user gives both no need to calculate it
-			(calc_base, calc_fpath) = find_libc(pid).expect("could not read proc maps of process");
+			if let Some((b, p)) = map_addr_path(pid.as_raw(), "libc.so.6")? {
+				(calc_base, calc_fpath) = (b, p);
+			}
 		}
 
 		let base = match args.base {
@@ -91,8 +93,8 @@ fn nasty_stuff(args: NeedleArgs) -> Result<()> {
 		};
 
 		let offset = match args.offset {
-			Some(o) => o,
-			None    => find_dlopen(&fpath).expect("could not read libc shared object")
+			Some(o) => o, // TODO catch error if dlopen is not in symbols
+			None    => offset_in_elf(&fpath, "dlopen")?.expect("no dlopen symbol available"),
 		};
 
 		dlopen_addr = base + offset;
@@ -141,7 +143,7 @@ fn main() {
 	let monitor = args.monitor;
 
 	if let Err(e) = nasty_stuff(args) {
-		error!("error injecting shared object: {} ({})", e, e.desc());
+		error!("error injecting shared object: {}", e);
 		return;
 	}
 

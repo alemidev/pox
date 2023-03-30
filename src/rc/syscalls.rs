@@ -1,7 +1,7 @@
 use nix::{libc::user_regs_struct, Result, sys::{ptrace, wait::waitpid}, unistd::Pid};
 use tracing::debug;
 
-use crate::{injector::RemoteOperation, senders::RemoteString};
+use crate::rc::{injector::RemoteOperation, senders::RemoteString};
 
 pub trait RemoteSyscall {
 	fn registers(&self, regs: &mut user_regs_struct);

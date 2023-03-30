@@ -1,13 +1,14 @@
 use nix::{unistd::Pid, Result, libc::{PROT_READ, MAP_PRIVATE, MAP_ANON, PROT_EXEC}, sys::{ptrace, wait::waitpid}};
 use tracing::{debug, info};
 
-use crate::{syscalls::{RemoteMMap, RemoteMUnmap}, senders::write_buffer, injector::RemoteOperation};
+use crate::rc::{injector::RemoteOperation, syscalls::{RemoteMMap, RemoteMUnmap}, senders::write_buffer};
 
 pub struct RemoteShellcode<'a> {
 	code: &'a [u8],
 	ptr: Option<u64>,
 }
 
+#[allow(unused)]
 impl<'a> RemoteShellcode<'a> {
 	pub fn new(code: &'a [u8]) -> Self {
 		RemoteShellcode { code, ptr: None }

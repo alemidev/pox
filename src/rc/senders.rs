@@ -3,7 +3,7 @@ use std::{ffi::c_void, mem::size_of};
 use nix::{Result, unistd::Pid, sys::ptrace, libc::{PROT_READ, PROT_WRITE, MAP_PRIVATE, MAP_ANON}};
 use tracing::{debug, info};
 
-use crate::{injector::RemoteOperation, syscalls::{RemoteMMap, RemoteMUnmap}};
+use crate::rc::{injector::RemoteOperation, syscalls::{RemoteMMap, RemoteMUnmap}};
 
 const WORD_SIZE : usize = size_of::<usize>();
 

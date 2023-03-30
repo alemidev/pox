@@ -1,8 +1,6 @@
-use std::{ffi::c_void, path::{Path, PathBuf}, io::{ErrorKind, Error}};
+use std::ffi::c_void;
 
-use elf::{ElfBytes, endian::AnyEndian};
 use nix::{unistd::Pid, sys::{ptrace, wait::waitpid}};
-use proc_maps::get_process_maps;
 
 pub fn step_to_syscall(pid: Pid) -> nix::Result<usize> {
 	let mut registers;
