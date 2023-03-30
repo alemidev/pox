@@ -2,7 +2,7 @@ use std::net::TcpListener;
 
 use tracing::info;
 
-pub fn monitor_payload() {
+pub fn listen_logs() {
 	info!("listening for logs from injected payload ...");
 	if let Ok(listener) = TcpListener::bind("127.0.0.1:13337") {
 		if let Ok((mut stream, addr)) = listener.accept() {

@@ -19,7 +19,7 @@ pub fn find_symbol<T : Function>(name: &str) -> Result<Option<T>, Box<dyn Error>
 	// try to read it from executable's elf
 	match find_argv0() {
 		None => warn!("could not find argv0 for process"),
-		Some(exec) => match procmaps::map_addr_path(&exec)? {
+		Some(exec) => match procmaps::map_addr_path(std::process::id() as i32, &exec)? {
 			None => warn!("could not find base addr of process image"),
 			Some((base, path)) => match exec::offset_in_elf(&path, &name)? {
 				None => warn!("could not locate requested symbol in ELF"),
@@ -90,8 +90,8 @@ pub mod procmaps {
 
 	use crate::tricks::fmt_path;
 
-	pub fn map_addr_path(name: &str) -> std::io::Result<Option<(usize, PathBuf)>> {
-		let proc_maps = get_process_maps(std::process::id() as i32)?;
+	pub fn map_addr_path(pid: i32, name: &str) -> std::io::Result<Option<(usize, PathBuf)>> {
+		let proc_maps = get_process_maps(pid)?;
 	
 		for map in proc_maps {
 			debug!("map > 0x{:08X} {} [{:x}] - {} [{}]", map.start(), map.flags, map.offset, map.inode, fmt_path(map.filename()));

@@ -1,4 +1,4 @@
-use std::{ffi::c_void, fmt::Display, mem::size_of};
+use std::{ffi::c_void, mem::size_of};
 
 use nix::{Result, unistd::Pid, sys::ptrace, libc::{PROT_READ, PROT_WRITE, MAP_PRIVATE, MAP_ANON}};
 use tracing::{debug, info};
@@ -6,25 +6,6 @@ use tracing::{debug, info};
 use crate::{injector::RemoteOperation, syscalls::{RemoteMMap, RemoteMUnmap}};
 
 const WORD_SIZE : usize = size_of::<usize>();
-
-pub struct ByteVec(pub Vec<u8>);
-
-impl From<Vec<u8>> for ByteVec {
-	fn from(value: Vec<u8>) -> Self {
-		ByteVec(value)
-	}
-}
-
-impl Display for ByteVec {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "[ ")?;
-		for el in self.0.iter() {
-			write!(f, "0x{:x} ", el)?;
-		}
-		write!(f, "]")?;
-		Ok(())
-	}
-}
 
 #[allow(unused)]
 pub fn read_buffer(pid: Pid, addr: usize, size: usize) -> Result<Vec<u8>> {

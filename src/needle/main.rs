@@ -1,23 +1,17 @@
-mod syscalls;
-mod executors;
-mod senders;
-mod injector;
-mod explorers;
-mod monitor;
-
 use std::path::PathBuf;
 
-use injector::RemoteOperation;
-use monitor::monitor_payload;
+use tracing::{metadata::LevelFilter, info, error};
+
 use nix::{Result, {sys::{ptrace, wait::waitpid}, unistd::Pid}};
 use clap::Parser;
 
-use executors::RemoteShellcode;
-use senders::RemoteString;
-use explorers::step_to_syscall;
-use tracing::{metadata::LevelFilter, info, error};
+use rustyneedle::{
+	injector::RemoteOperation, executors::RemoteShellcode,
+	senders::RemoteString, syscalls::RemoteExit,
+	explorers::step_to_syscall,
+};
 
-use crate::{explorers::{find_libc, find_dlopen}, syscalls::RemoteExit};
+mod monitor;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -152,7 +146,7 @@ fn main() {
 	}
 
 	if monitor {
-		monitor_payload();
+		monitor::listen_logs();
 	}
 
 }
