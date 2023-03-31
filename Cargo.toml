@@ -1,15 +1,15 @@
 [package]
-name = "rustyneedle"
+name = "pox"
 version = "0.2.0"
 edition = "2021"
 
 [lib]
-name = "rustyneedle"
+name = "pox"
 path = "src/lib.rs"
 
 [[bin]]
-name = "needle"
-path = "src/needle/main.rs"
+name = "vector"
+path = "src/vector/main.rs"
 required-features = ["bin"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
