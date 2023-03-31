@@ -15,15 +15,18 @@ required-features = ["bin"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-elf = "0.7.2"
-retour = "0.1" # plain detour doesn't work on latest nightly? idk
-proc-maps = "0.3.0"
-libloading = "0.7.4"
 tracing = "0.1.37"
-tracing-subscriber = "0.3.16"
+libloading = { version = "0.7.4", optional = true }
+elf = { version = "0.7.2", optional = true }
+retour = { version = "0.1", optional = true } # plain detour doesn't work on latest nightly? idk
+proc-maps = { version = "0.3.0", optional = true }
 nix = { version = "0.26.2", optional = true }
+tracing-subscriber = { version = "0.3.16", optional = true }
 clap = { version = "4.1.13", features = ["derive"], optional = true }
 
 [features]
-rc = ["dep:nix"]
-bin = ["rc", "dep:clap"]
+default = ["locator", "bin", "monitor"]
+locator = ["dep:elf", "dep:proc-maps", "dep:retour", "dep:libloading"]
+monitor = ["dep:tracing-subscriber"]
+rc      = ["dep:nix"]
+bin     = ["locator", "rc", "monitor", "dep:clap"]
