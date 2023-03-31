@@ -5,13 +5,13 @@ use tracing::{metadata::LevelFilter, info, error};
 use nix::{sys::{ptrace, wait::waitpid}, unistd::Pid};
 use clap::Parser;
 
-use rustyneedle::{rc::{
+use pox::locators::{procmaps::map_addr_path, exec::offset_in_elf};
+use pox::rc::{
 	injector::RemoteOperation, executors::RemoteShellcode,
 	senders::RemoteString, syscalls::RemoteExit,
 	explorers::step_to_syscall,
-}, locators::{procmaps::map_addr_path, exec::offset_in_elf}};
-
-mod monitor;
+};
+use pox::monitor::listen_logs;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -147,8 +147,5 @@ fn main() {
 		return;
 	}
 
-	if monitor {
-		monitor::listen_logs();
-	}
-
+	if monitor { listen_logs() } // blocks here showing injector logs
 }
