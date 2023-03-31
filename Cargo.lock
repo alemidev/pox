@@ -558,6 +558,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
+name = "pox"
+version = "0.2.0"
+dependencies = [
+ "clap 4.2.1",
+ "elf",
+ "libloading",
+ "nix",
+ "proc-maps",
+ "retour",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -652,20 +666,6 @@ dependencies = [
  "libc",
  "linux-raw-sys",
  "windows-sys",
-]
-
-[[package]]
-name = "rustyneedle"
-version = "0.2.0"
-dependencies = [
- "clap 4.2.1",
- "elf",
- "libloading",
- "nix",
- "proc-maps",
- "retour",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
