@@ -24,7 +24,7 @@ pub fn find_symbol<T : Function>(name: &str) -> Result<Option<T>, Box<dyn Error>
 			Some((base, path)) => match exec::offset_in_elf(&path, &name)? {
 				None => warn!("could not locate requested symbol in ELF"),
 				Some(offset) => {
-					let addr : *const () = (base + offset) as *const ();
+					let addr = (base + offset) as *const ();
 					return Ok(Some(unsafe { Function::from_ptr(addr) } ));
 				}
 			}
