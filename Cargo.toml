@@ -25,7 +25,7 @@ tracing-subscriber = { version = "0.3.16", optional = true }
 clap = { version = "4.1.13", features = ["derive"], optional = true }
 
 [features]
-default = ["locator", "bin", "monitor"]
+default = ["locator"]
 locator = ["dep:elf", "dep:proc-maps", "dep:retour", "dep:libloading"]
 monitor = ["dep:tracing-subscriber"]
 rc      = ["dep:nix"]
