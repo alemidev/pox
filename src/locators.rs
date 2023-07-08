@@ -5,7 +5,7 @@ use retour::Function;
 
 use tracing::warn;
 
-use crate::tricks::find_argv0;
+use crate::tricks::find_exec_name;
 
 
 pub fn find_symbol<T : Function>(name: &str) -> Result<Option<T>, Box<dyn Error>> {
@@ -17,21 +17,20 @@ pub fn find_symbol<T : Function>(name: &str) -> Result<Option<T>, Box<dyn Error>
 	}
 
 	// try to read it from executable's elf
-	match find_argv0() {
-		None => warn!("could not find argv0 for process"),
-		Some(exec) => match procmaps::map_addr_path(std::process::id() as i32, &exec)? {
-			None => warn!("could not find base addr of process image"),
-			Some((base, path)) => match exec::offset_in_elf(&path, &name)? {
-				None => warn!("could not locate requested symbol in ELF"),
-				Some(offset) => {
-					let addr = (base + offset) as *const ();
-					return Ok(Some(unsafe { Function::from_ptr(addr) } ));
-				}
-			}
-		}
-	}
-
-	Ok(None)
+	let Some(exec) = find_exec_name() else {
+		warn!("could not find argv0 for process");
+		return Ok(None);
+	};
+	let Some((base, path)) = procmaps::map_addr_path(std::process::id() as i32, &exec)? else {
+		warn!("could not find base addr of process image");
+		return Ok(None);
+	};
+	let Some(offset) = exec::offset_in_elf(&path, &name)? else {
+		warn!("could not locate requested symbol in ELF");
+		return Ok(None);
+	};
+	let addr = (base + offset) as *const ();
+	Ok(Some(unsafe { Function::from_ptr(addr) } ))
 }
 
 
@@ -83,14 +82,14 @@ pub mod exec {
 }
 
 pub mod procmaps {
-	use std::path::PathBuf;
+	use std::path::{PathBuf, Path};
 
 	use proc_maps::get_process_maps;
 	use tracing::{debug, warn};
 
 	use crate::tricks::fmt_path;
 
-	pub fn map_addr_path(pid: i32, name: &str) -> std::io::Result<Option<(usize, PathBuf)>> {
+	pub fn map_addr_path(pid: i32, name: &Path) -> std::io::Result<Option<(usize, PathBuf)>> {
 		let proc_maps = get_process_maps(pid)?;
 	
 		for map in proc_maps {
@@ -103,7 +102,7 @@ pub mod procmaps {
 				}
 			}
 		}
-		warn!("could not find address of '{}'", name);
+		warn!("could not find address of '{}'", name.to_string_lossy());
 
 		Ok(None)
 	}

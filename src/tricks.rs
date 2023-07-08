@@ -17,8 +17,22 @@ impl std::fmt::Display for ByteVec {
 	}
 }
 
-pub fn find_argv0() -> Option<String> { // could be a relative path, just get last member
-	Some(std::env::args().next()?.split("/").last()?.into()) // TODO separator for windows?
+pub fn find_exec_name() -> Option<std::path::PathBuf> {
+	current_exe_name().or_else(|| find_argv0())
+}
+
+pub fn current_exe_name() -> Option<std::path::PathBuf> {
+	let path = std::env::current_exe().ok()?;
+	let filename = path.file_name()?;
+	Some(std::path::PathBuf::from(filename))
+}
+
+pub fn find_argv0() -> Option<std::path::PathBuf> {
+	let argv0 = std::env::args_os().next()?;
+	let path = std::path::PathBuf::from(argv0);
+	// could be a relative path, just get last member
+	let filename = path.file_name()?;
+	Some(std::path::PathBuf::from(filename))
 }
 
 pub fn fmt_path(p: Option<&std::path::Path>) -> String {
