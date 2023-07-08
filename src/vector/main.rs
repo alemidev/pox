@@ -1,9 +1,9 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, process::Command};
 
 use tracing::{metadata::LevelFilter, info, error};
 
 use nix::{sys::{ptrace, wait::waitpid}, unistd::Pid};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 use pox::locators::{procmaps::map_addr_path, exec::offset_in_elf};
 use pox::rc::{
@@ -15,13 +15,12 @@ use pox::monitor::listen_logs;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct NeedleArgs {
-	/// target process pid
-	pid: i32,
-
+struct VectorArgs {
 	/// shared object to inject into target process
-	#[arg(short, long)]
 	payload: String,
+
+	#[clap(subcommand)]
+	target: TargetProcess,
 
 	/// exact address of dlopen function, calculated with `base + offset` if not given
 	#[arg(long)]
@@ -48,12 +47,46 @@ struct NeedleArgs {
 	monitor: bool,
 }
 
-fn nasty_stuff(args: NeedleArgs) -> Result<(), Box<dyn std::error::Error>> {
-	let pid = Pid::from_raw(args.pid);
+#[derive(Subcommand, Clone, Debug)]
+enum TargetProcess {
+	/// Target a running process specifying its pid
+	Pid {
+		/// target pid
+		pid: i32
+	},
+
+	/// Target a new process by spawning it
+	Spawn {
+		/// path to spawn process from
+		path: String,
+
+		/// optional process arguments
+		#[arg(long, short)]
+		args: Option<Vec<String>>,
+
+		/// how long in ms to wait for child process to setup
+		#[arg(long, short, default_value_t = 1000)]
+		delay: u32,
+	}
+}
+
+fn nasty_stuff(args: &VectorArgs) -> Result<(), Box<dyn std::error::Error>> {
+	let pid = match &args.target {
+		TargetProcess::Pid { pid } => Pid::from_raw(*pid),
+		TargetProcess::Spawn { path, args, delay } => {
+			let child = Command::new(path)
+				.args(args.as_ref().unwrap_or(&vec![]))
+				.spawn()?;
+
+			std::thread::sleep(std::time::Duration::from_millis(*delay as u64));
+
+			Pid::from_raw(child.id() as i32)
+		}
+	};
 
 	ptrace::attach(pid)?;
 	waitpid(pid, None)?;
-	info!("attached to process #{}", args.pid);
+	info!("attached to process #{}", pid);
 
 	// continue running process step-by-step until we find a syscall
 	let syscall = step_to_syscall(pid)?; // TODO no real need to step...
@@ -61,14 +94,14 @@ fn nasty_stuff(args: NeedleArgs) -> Result<(), Box<dyn std::error::Error>> {
 
 	if args.kill {
 		RemoteExit::args(69).exit(pid, syscall)?;
-		info!("killed process #{}", args.pid);
+		info!("killed process #{}", pid);
 		return Ok(());
 	}
 
 	// move path to our payload into target address space
-	let tetanus = RemoteString::new(args.payload.clone() + "\0")
+	let payload = RemoteString::new(args.payload.clone() + "\0")
 		.inject(pid, syscall)?;
-	
+
 	// find dlopen address
 	// TODO make this part less spaghetti
 	let dlopen_addr;
@@ -87,14 +120,14 @@ fn nasty_stuff(args: NeedleArgs) -> Result<(), Box<dyn std::error::Error>> {
 			None    => calc_base,
 		};
 
-		let fpath = match args.path {
+		let fpath = match &args.path {
 			Some(p) => p,
-			None    => calc_fpath,
+			None    => &calc_fpath,
 		};
 
 		let offset = match args.offset {
 			Some(o) => o, // TODO catch error if dlopen is not in symbols
-			None    => offset_in_elf(&fpath, "dlopen")?.expect("no dlopen symbol available"),
+			None    => offset_in_elf(fpath, "dlopen")?.expect("no dlopen symbol available"),
 		};
 
 		dlopen_addr = base + offset;
@@ -117,7 +150,7 @@ fn nasty_stuff(args: NeedleArgs) -> Result<(), Box<dyn std::error::Error>> {
 	// intercept our mock CALL and redirect it to dlopen real address (also fill args)
 	let mut regs = ptrace::getregs(pid)?;
 	regs.rip = dlopen_addr as u64;
-	regs.rdi = tetanus;
+	regs.rdi = payload;
 	regs.rsi = 0x1;
 	ptrace::setregs(pid, regs)?;
 	ptrace::cont(pid, None)?;
@@ -128,7 +161,7 @@ fn nasty_stuff(args: NeedleArgs) -> Result<(), Box<dyn std::error::Error>> {
 	// TODO clean allocated areas
 	ptrace::setregs(pid, original_regs)?;
 	ptrace::detach(pid, None)?;
-	info!("released process #{}", args.pid);
+	info!("released process #{}", pid);
 
 	Ok(())
 }
@@ -138,11 +171,11 @@ fn main() {
 		.with_max_level(LevelFilter::INFO)
 		.init();
 
-	let args = NeedleArgs::parse();
+	let args = VectorArgs::parse();
 
 	let monitor = args.monitor;
 
-	if let Err(e) = nasty_stuff(args) {
+	if let Err(e) = nasty_stuff(&args) {
 		error!("error injecting shared object: {}", e);
 		return;
 	}
