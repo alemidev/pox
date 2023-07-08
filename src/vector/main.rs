@@ -98,8 +98,11 @@ fn nasty_stuff(args: &VectorArgs) -> Result<(), Box<dyn std::error::Error>> {
 		return Ok(());
 	}
 
+	let payload_path = std::path::PathBuf::from(&args.payload).canonicalize()?;
+	let payload_path_str = payload_path.to_string_lossy().to_string();
+
 	// move path to our payload into target address space
-	let payload = RemoteString::new(args.payload.clone() + "\0")
+	let payload_ptr = RemoteString::new(payload_path_str.clone() + "\0")
 		.inject(pid, syscall)?;
 
 	// find dlopen address
@@ -150,12 +153,12 @@ fn nasty_stuff(args: &VectorArgs) -> Result<(), Box<dyn std::error::Error>> {
 	// intercept our mock CALL and redirect it to dlopen real address (also fill args)
 	let mut regs = ptrace::getregs(pid)?;
 	regs.rip = dlopen_addr as u64;
-	regs.rdi = payload;
+	regs.rdi = payload_ptr;
 	regs.rsi = 0x1;
 	ptrace::setregs(pid, regs)?;
 	ptrace::cont(pid, None)?;
 	waitpid(pid, None)?;
-	info!("invoked dlopen('{}', 1) @ 0x{:X}", args.payload, dlopen_addr);
+	info!("invoked dlopen('{}', 1) @ 0x{:X}", payload_path_str, dlopen_addr);
 
 	// restore original registers and detach
 	// TODO clean allocated areas
